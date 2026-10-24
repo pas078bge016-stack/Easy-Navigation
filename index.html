@@ -1,0 +1,806 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#0b1220"/>
+<meta name="description" content="Explore Western Regional Campus with live maps, AR directions, a mobile compass, 3D views, and geodetic tools."/>
+<title>WRC Campus Navigator</title>
+<!-- Leaflet -->	
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<!-- Three.js for 3D models -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- GLTFLoader for 3D models -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<!-- OSM Buildings -->
+<link href="https://cdn.osmbuildings.org/4.1.1/OSMBuildings.css" rel="stylesheet">
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="style.css"/>
+
+<style>
+
+
+</style>
+</head>
+<body>
+
+<!-- Permission Request Modal -->
+<div id="permissionRequest">
+<div class="permission-container">
+    <div class="permission-header">
+        <h2>Welcome to AR Campus Navigator</h2>
+        <p>To provide the best experience, we need your permission to access location and camera services.</p>
+    </div>
+    
+    <div class="permission-features">
+        <div class="permission-feature">
+            <i class="fas fa-map-marker-alt"></i>
+            <div>
+                <h4>Location Services</h4>
+                <p>For accurate navigation and building detection on campus</p>
+            </div>
+        </div>
+        <div class="permission-feature">
+            <i class="fas fa-camera"></i>
+            <div>
+                <h4>Camera Access</h4>
+                <p>For augmented reality mode to overlay directions in real-world view</p>
+            </div>
+        </div>
+        <div class="permission-feature">
+            <i class="fas fa-compass"></i>
+            <div>
+                <h4>Device Orientation</h4>
+                <p>For accurate direction tracking in AR navigation mode</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="permission-actions">
+        <button class="permission-btn secondary" id="skipPermissions">
+            <i class="fas fa-play-circle"></i> Skip for Now
+        </button>
+        <button class="permission-btn primary" id="grantPermissions">
+            <i class="fas fa-check-circle"></i> Grant Permissions
+        </button>
+    </div>
+    
+    <div class="permission-note">
+        <p>You can always grant these permissions later in your browser settings. Some features may be limited without permissions.</p>
+    </div>
+</div>
+</div>
+
+<!-- Camera Permission Request Modal -->
+<div id="cameraPermissionRequest">
+<div class="camera-permission-container">
+    <div class="camera-permission-header">
+        <h2>Camera Access Required</h2>
+        <p>AR Navigation Mode requires camera access to overlay directions on your camera view.</p>
+    </div>
+    
+    <div class="camera-permission-actions">
+        <button class="camera-permission-btn secondary" id="skipCameraPermission">
+            <i class="fas fa-times-circle"></i> Cancel
+        </button>
+        <button class="camera-permission-btn primary" id="grantCameraPermission">
+            <i class="fas fa-camera"></i> Allow Camera Access
+        </button>
+    </div>
+    
+    <div class="permission-note">
+        <p>Without camera access, AR mode will show a simulated view instead of live camera feed.</p>
+    </div>
+</div>
+</div>
+
+<!-- Login Modal -->
+<div id="loginModal">
+<div class="login-container">
+    <div class="login-header">
+        <h2>Welcome Back</h2>
+        <p>Sign in to access AR Campus Navigator</p>
+    </div>
+    <form class="login-form" id="loginForm">
+        <div class="form-group">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" placeholder="Enter your email" required>
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter your password" required>
+        </div>
+        <button type="submit" class="login-btn">Sign In</button>
+    </form>
+    <div class="toggle-form">
+        <p>Don't have an account? <a id="showRegister">Sign Up</a></p>
+    </div>
+    <button class="guest-access-btn" id="continueAsGuest" type="button">Continue as guest <i class="fas fa-arrow-right"></i></button>
+    <div class="login-footer">
+        <p>Location and camera access are optional. You can enable them whenever you need them.</p>
+    </div>
+</div>
+</div>
+
+<!-- Register Modal -->
+<div id="registerModal" style="display:none">
+<div class="login-container">
+    <div class="login-header">
+        <h2>Create Account</h2>
+        <p>Sign up to access AR Campus Navigator</p>
+    </div>
+    <form class="login-form" id="registerForm">
+        <div class="form-group">
+            <label for="fullName">Full Name</label>
+            <input type="text" id="fullName" placeholder="Enter your full name" required>
+        </div>
+        <div class="form-group">
+            <label for="regEmail">Email Address</label>
+            <input type="email" id="regEmail" placeholder="Enter your email" required>
+        </div>
+        <div class="form-group">
+            <label for="regPassword">Password</label>
+            <input type="password" id="regPassword" placeholder="Create a password" required>
+        </div>
+        <div class="form-group">
+            <label for="confirmPassword">Confirm Password</label>
+            <input type="password" id="confirmPassword" placeholder="Confirm your password" required>
+        </div>
+        <button type="submit" class="login-btn">Create Account</button>
+    </form>
+    <div class="toggle-form">
+        <p>Already have an account? <a id="showLogin">Sign In</a></p>
+    </div>
+    <div class="login-footer">
+        <p>By continuing, you agree to our Terms of Service</p>
+    </div>
+</div>
+</div>
+
+<!-- Route Status Indicator -->
+<div class="route-status" id="routeStatus"></div>
+
+<!-- NEW: Route Cache Indicator -->
+<div class="route-cache-indicator" id="routeCacheIndicator">Using cached route</div>
+
+<div id="splash">
+<!-- Pashchimanchal Campus Logo -->
+<div class="splash-brand-lockup">
+    <img src="TU%20logo.png" alt="Tribhuvan University crest" class="splash-crest">
+    <div><strong>TRIBHUVAN UNIVERSITY</strong><span>Institute of Engineering · Pashchimanchal Campus</span></div>
+</div>
+<img src="campus_logo.png" alt="Pashchimanchal Campus Logo" class="splash-logo" onerror="this.style.display='none'">
+
+<!-- Premium Arc Reactor -->
+<div class="arc-container">
+  <div class="arc-reactor">
+    <div class="core"></div>
+    <div class="ring inner-ring"></div>
+    <div class="ring outer-ring"></div>
+    <div class="marks-container">
+      <!-- 12 Marks, simple css generation -->
+      <div class="mark" style="transform: rotate(0deg)"></div>
+      <div class="mark" style="transform: rotate(30deg)"></div>
+      <div class="mark" style="transform: rotate(60deg)"></div>
+      <div class="mark" style="transform: rotate(90deg)"></div>
+      <div class="mark" style="transform: rotate(120deg)"></div>
+      <div class="mark" style="transform: rotate(150deg)"></div>
+      <div class="mark" style="transform: rotate(180deg)"></div>
+      <div class="mark" style="transform: rotate(210deg)"></div>
+      <div class="mark" style="transform: rotate(240deg)"></div>
+      <div class="mark" style="transform: rotate(270deg)"></div>
+      <div class="mark" style="transform: rotate(300deg)"></div>
+      <div class="mark" style="transform: rotate(330deg)"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card glassmorphism-card">
+<p class="splash-eyebrow">WESTERN REGIONAL CAMPUS · POKHARA</p>
+<h1 class="glow-text">Start with the world.<br>Find your place.</h1>
+<p class="subtitle">Fly from a world view into WRC, explore live map layers and navigate campus or destinations worldwide.</p>
+<button id="startBtn" class="premium-btn">
+    <span>Explore the world</span>
+    <div class="btn-glow"></div>
+</button>
+<div class="splash-capabilities">
+    <span><i class="fas fa-location-arrow"></i> Live navigation</span>
+    <span><i class="fas fa-cube"></i> Immersive campus</span>
+</div>
+</div>
+</div>
+
+<div id="app">
+<header class="app-topbar">
+    <div class="brand-lockup">
+        <img src="TU%20logo.png" alt="Tribhuvan University crest" class="brand-mark">
+        <div class="brand-copy">
+            <strong>WRC <span>Navigator</span></strong>
+            <small>Western Regional Campus · Pokhara</small>
+        </div>
+    </div>
+    <div class="topbar-actions">
+        <div class="location-status"><span class="status-dot"></span><span id="locationStatusText">Campus map ready</span></div>
+        <a class="portfolio-link" href="https://pas078bge016-stack.github.io/Portfolio/" target="_blank" rel="noopener noreferrer" aria-label="Open Dipendra Thakur's portfolio">
+            <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i><span>Portfolio</span>
+        </a>
+    </div>
+</header>
+
+<!-- User Menu -->
+<div id="userMenu">
+    <button class="user-menu-btn" id="userMenuBtn">
+        <i class="fas fa-user-circle"></i>
+        <span id="userName">User</span>
+        <i class="fas fa-chevron-down"></i>
+    </button>
+    <div class="user-dropdown" id="userDropdown">
+        <button id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </div>
+</div>
+
+<!-- Location Request Button - NEW -->
+<button id="locationRequestBtn" style="display:none">
+    <i class="fas fa-location-arrow"></i> Allow Location
+</button>
+
+<nav class="mode-dock" id="modeDock" aria-label="Explore campus tools">
+    <button class="mode-tab active" id="mapBtn" aria-label="Map" title="Campus map">
+        <i class="fas fa-map"></i><span>Map</span>
+    </button>
+    <button class="mode-tab" id="arBtn" aria-label="AR navigation" title="Augmented reality navigation">
+        <i class="fas fa-location-arrow"></i><span>AR guide</span>
+    </button>
+    <button class="mode-tab" id="measureBtn" aria-label="Measure" title="Measure distance and area">
+        <i class="fas fa-ruler-combined"></i><span>Measure</span>
+    </button>
+    <button class="mode-tab" id="modelBtn" aria-label="3D model gallery" title="Explore embedded 3D models">
+        <i class="fas fa-cube"></i><span>3D models</span>
+    </button>
+    <button class="mode-tab" id="osmBtn" aria-label="OpenStreetMap 3D buildings" title="Explore OSM 3D buildings">
+        <i class="fas fa-city"></i><span>OSM 3D</span>
+    </button>
+</nav>
+
+<!-- Building selection panel - Near App Modes -->
+<div id="panel" class="glassmorphism-card" style="padding: 15px; max-width: 90vw; max-height: 70vh; overflow-y:auto;">
+    <div class="panel-heading">
+        <div>
+            <span class="panel-kicker">CAMPUS DIRECTORY</span>
+            <strong>Where to?</strong>
+        </div>
+        <button class="panel-collapse-btn" id="panelCollapseBtn" type="button" aria-label="Collapse campus directory" aria-expanded="true"><i class="fas fa-chevron-down"></i></button>
+    </div>
+    <div class="panel-content" id="panelContent">
+    <button class="survey-action-btn primary ar-location-btn" id="arLocationBtn" type="button" style="display:none"><i class="fas fa-location-crosshairs" aria-hidden="true"></i> Enable live GPS for AR</button>
+    <button class="survey-action-btn primary ar-experience-btn" id="arExperienceBtn" type="button"><i class="fas fa-camera" aria-hidden="true"></i><span id="arExperienceLabel" aria-live="polite">Start AR experience</span></button>
+    <label style="font-size: 13px; display:block; margin-bottom:5px;"><strong>Choose building </strong></label>
+    <select id="buildingSelect" style="margin-bottom:10px; width:100%; font-size: 13px;"><option value="">— Loading —</option></select>
+
+    <div id="routeTypeSelection">
+      <div class="small" style="font-size: 12px; margin-bottom:5px;">Choose mapped network:</div>
+      <div class="route-type-options" style="display:flex; gap:8px;">
+        <button class="route-type-btn active" data-type="foot" style="flex:1; padding: 6px 10px; font-size: 12px;" title="Prefer mapped footways, paths, and pedestrian-accessible streets"><i class="fas fa-person-walking" aria-hidden="true"></i> Walk · paths</button>
+        <button class="route-type-btn" data-type="car" style="flex:1; padding: 6px 10px; font-size: 12px;" title="Use the mapped road network for motor vehicles"><i class="fas fa-car" aria-hidden="true"></i> Drive · roads</button>
+      </div>
+      <small class="route-network-note">Walking prefers mapped paths; driving uses mapped roads. Availability varies with local OpenStreetMap coverage.</small>
+    </div>
+    <section class="world-route-search" aria-labelledby="worldRouteSearchTitle">
+      <label id="worldRouteSearchTitle" for="worldRouteQuery">Navigate anywhere</label>
+      <div class="world-route-search-row">
+        <input id="worldRouteQuery" type="search" autocomplete="off" placeholder="Search a place or address worldwide">
+        <button id="worldRouteSearchBtn" type="button"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span>Search</span></button>
+      </div>
+      <div id="worldRouteResults" class="world-route-results" role="listbox" aria-live="polite"></div>
+      <small>Uses OpenStreetMap place data and public routing. Route coverage depends on mapped roads and paths.</small>
+    </section>
+    <section id="routeDetails" class="route-details" aria-live="polite" hidden>
+      <div class="route-details-heading">
+        <div><strong id="routeSummaryTitle">Route</strong><span id="routeSummaryMetrics"></span></div>
+        <button id="clearRouteBtn" type="button" aria-label="Clear route" title="Clear route"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+      </div>
+      <ol id="routeSteps"></ol>
+    </section>
+
+    <div id="sourceRow" style="display:flex; gap:8px; margin-top:10px;">
+      <button id="useFixed" class="premium-btn secondary" title="Use fixed campus list" style="flex:1; padding: 6px 10px; font-size: 12px;">Fixed campus</button>
+      <button id="useOSM" class="premium-btn secondary" title="Load buildings from OpenStreetMap" style="flex:1; padding: 6px 10px; font-size: 12px;">Load OSM</button>
+    </div>
+
+    <button id="refreshBlds" class="premium-btn secondary" style="width:100%; margin-top:8px; padding: 8px; font-size: 12px;">Refresh nearby buildings</button>
+    </div>
+</div>
+
+<!-- Map Type Controls -->
+<div class="interactive-dropdown top-right" id="mapTypeWrapper">
+    <button class="premium-btn primary-glow toggle-btn" id="mapTypeToggle" type="button" aria-expanded="false" aria-controls="mapTypeControls">
+        <i class="fas fa-layer-group"></i> Map Type
+    </button>
+    <div id="mapTypeControls" class="dropdown-panel glassmorphism-card" style="padding:10px;">
+        <button class="map-type-btn active" data-type="osm">Standard</button>
+        <button class="map-type-btn" data-type="satellite">Satellite</button>
+        <button class="map-type-btn" data-type="terrain">Terrain</button>
+        <button class="map-type-btn" data-type="cycle">Cycle</button>
+        <button class="map-type-btn" data-type="transport">Transport</button>
+    </div>
+</div>
+
+<!-- Enhanced Compass -->
+<div class="enhanced-compass" id="enhancedCompass" style="display:none">
+    <div class="enhanced-compass-inner">
+        <div class="enhanced-compass-ring"></div>
+        <div class="enhanced-compass-cardinal north">N</div>
+        <div class="enhanced-compass-cardinal east">E</div>
+        <div class="enhanced-compass-cardinal south">S</div>
+        <div class="enhanced-compass-cardinal west">W</div>
+        <div class="enhanced-compass-needle" id="enhancedCompassNeedle"></div>
+        <div class="enhanced-compass-center"></div>
+        <div class="enhanced-compass-degree" id="enhancedCompassDegree">0°</div>
+    </div>
+</div>
+
+<button class="device-compass" id="deviceCompass" type="button" aria-label="Enable device compass">
+    <span class="device-compass-dial" id="deviceCompassDial">
+        <span class="device-compass-cardinal north">N</span>
+        <span class="device-compass-cardinal east">E</span>
+        <span class="device-compass-cardinal south">S</span>
+        <span class="device-compass-cardinal west">W</span>
+        <span class="device-compass-needle"></span>
+        <span class="device-compass-pivot"></span>
+    </span>
+    <span class="device-compass-readout">
+        <strong id="deviceCompassDegree">—</strong>
+        <small id="deviceCompassStatus">Tap to enable</small>
+    </span>
+</button>
+
+<!-- Geodetic Measurement Controls - NEW -->
+<div id="measureControls" style="display:none">
+<h3>Geodetic Measurement Tools</h3>
+
+<div class="measure-tools">
+  <button class="measure-tool-btn active" data-tool="distance">Distance</button>
+  <button class="measure-tool-btn" data-tool="area">Area</button>
+  <button class="measure-tool-btn" data-tool="point">Point</button>
+</div>
+
+<div class="measure-control-group">
+  <div class="measure-control-label">POINT COLOR</div>
+  <div class="measure-color-picker">
+    <div class="color-option active" style="background:#FF5252;" data-color="#FF5252"></div>
+    <div class="color-option" style="background:#4CAF50;" data-color="#4CAF50"></div>
+    <div class="color-option" style="background:#2196F3;" data-color="#2196F3"></div>
+    <div class="color-option" style="background:#FFC107;" data-color="#FFC107"></div>
+    <div class="color-option" style="background:#9C27B0;" data-color="#9C27B0"></div>
+  </div>
+</div>
+
+<div class="measure-control-group">
+  <div class="measure-control-label">POINT SYMBOL</div>
+  <div class="measure-symbol-picker">
+    <div class="symbol-option active" data-symbol="circle">●</div>
+    <div class="symbol-option" data-symbol="square">■</div>
+    <div class="symbol-option" data-symbol="triangle">▲</div>
+    <div class="symbol-option" data-symbol="star">★</div>
+    <div class="symbol-option" data-symbol="pin">📍</div>
+  </div>
+</div>
+
+<div class="measure-control-group">
+  <div class="measure-control-label">STROKE WIDTH</div>
+  <div class="measure-control-value" id="measureStrokeValue">3px</div>
+  <input type="range" min="1" max="10" value="3" class="measure-slider" id="measureStrokeSlider">
+</div>
+
+<div class="measure-control-group">
+  <div class="measure-control-label">FILL OPACITY</div>
+  <div class="measure-control-value" id="measureOpacityValue">0.5</div>
+  <input type="range" min="0" max="100" value="50" class="measure-slider" id="measureOpacitySlider">
+</div>
+
+<div class="measure-results" id="measureResults">
+  <div class="measure-result-item">
+    <div class="measure-result-label">Current Tool</div>
+    <div class="measure-result-value" id="currentTool">Distance Measurement</div>
+  </div>
+  <div class="measure-result-item">
+    <div class="measure-result-label">Points</div>
+    <div class="measure-result-value" id="pointsCount">0</div>
+  </div>
+  <div class="measure-result-item">
+    <div class="measure-result-label">Result</div>
+    <div class="measure-result-value" id="measureResult">-</div>
+  </div>
+</div>
+
+<section class="survey-tools" aria-labelledby="surveyToolsTitle">
+    <div class="survey-section-heading">
+        <div>
+            <span class="panel-kicker">FIELD WORKFLOW</span>
+            <h4 id="surveyToolsTitle">Survey utilities</h4>
+        </div>
+        <span class="coordinate-system-badge">WGS 84</span>
+    </div>
+    <div class="survey-coordinate-card">
+        <div class="survey-coordinate-heading"><i class="fas fa-crosshairs" aria-hidden="true"></i><span>Last map point</span></div>
+        <output id="surveyCoordinateReadout" aria-live="polite">Tap the map to capture coordinates</output>
+        <output id="surveyUtmReadout" class="survey-utm-readout">UTM · —</output>
+        <button class="survey-action-btn" id="copyCoordinatesBtn" type="button"><i class="fas fa-copy" aria-hidden="true"></i> Copy coordinates</button>
+    </div>
+    <div class="survey-coordinate-entry">
+        <label for="surveyLatitude">Go to WGS 84 coordinate</label>
+        <div class="survey-coordinate-fields">
+            <input id="surveyLatitude" type="number" inputmode="decimal" min="-90" max="90" step="any" placeholder="Latitude">
+            <input id="surveyLongitude" type="number" inputmode="decimal" min="-180" max="180" step="any" placeholder="Longitude">
+        </div>
+        <button class="survey-action-btn primary" id="goToCoordinateBtn" type="button"><i class="fas fa-location-arrow" aria-hidden="true"></i> Go to coordinate</button>
+    </div>
+    <div class="survey-analysis-card">
+        <div class="survey-coordinate-heading"><i class="fas fa-ruler" aria-hidden="true"></i><span>Inverse / bearing</span></div>
+        <div class="survey-pick-actions">
+            <button class="survey-action-btn" id="pickStartPointBtn" type="button">Pick point A</button>
+            <button class="survey-action-btn" id="pickEndPointBtn" type="button">Pick point B</button>
+        </div>
+        <output id="surveyBearingResult" aria-live="polite">Choose A and B on the map</output>
+    </div>
+    <div class="survey-analysis-card">
+        <div class="survey-coordinate-heading"><i class="fas fa-bullseye" aria-hidden="true"></i><span>Geodesic buffer</span></div>
+        <div class="survey-buffer-row">
+            <input id="bufferRadiusInput" type="number" inputmode="decimal" min="1" max="100000" value="50" aria-label="Buffer radius in metres">
+            <span>metres</span>
+            <button class="survey-action-btn" id="drawBufferBtn" type="button">Pick centre</button>
+        </div>
+    </div>
+    <div class="survey-tool-actions">
+        <button class="survey-action-btn" id="elevationLookupBtn" type="button"><i class="fas fa-mountain" aria-hidden="true"></i> Sample elevation</button>
+        <output id="elevationResult" aria-live="polite">Elevation sample uses Open-Elevation</output>
+        <button class="survey-action-btn primary" id="exportGeoJsonBtn" type="button"><i class="fas fa-file-export" aria-hidden="true"></i> Export GeoJSON</button>
+        <button class="survey-action-btn" id="clearSurveyDataBtn" type="button"><i class="fas fa-trash-alt" aria-hidden="true"></i> Clear survey features</button>
+    </div>
+</section>
+
+<div class="measure-control-row">
+  <button class="measure-control-btn" id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
+  <button class="measure-control-btn" id="redoBtn" title="Redo (Ctrl+Y)">↷</button>
+  <button class="measure-control-btn" id="clearBtn" title="Clear All">×</button>
+</div>
+
+<button class="measure-btn primary" id="exportBtn" style="width:100%;padding:12px;margin-top:10px">Export Data</button>
+
+</div>
+
+<!-- OSM Buildings Controls - UPDATED with integrated search -->
+<div id="osmControls" style="display:none">
+<div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+    <h3 style="margin:0;">OSM Buildings 3D</h3>
+    <button onclick="document.getElementById('mapBtn').click()" class="premium-btn secondary" style="padding: 5px 10px; font-size:12px; height:auto; width:auto;"><i class="fas fa-times"></i> Exit</button>
+</div>
+
+<!-- Search Section - ADDED here -->
+<div class="search-container">
+  <div class="osm-control-label">WORLDWIDE LOCATION SEARCH</div>
+  <input type="text" class="search-input" id="osmSearchInput" placeholder="Search any location worldwide...">
+  <button class="search-button" id="osmSearchButton">Search Location</button>
+  <div class="search-results" id="osmSearchResults"></div>
+</div>
+
+<div class="osm-control-group">
+  <div class="osm-control-label">TILT</div>
+  <div class="osm-control-value" id="osmTiltValue">0°</div>
+  <input type="range" min="0" max="80" value="0" class="osm-slider" id="osmTiltSlider">
+  <div class="osm-control-row">
+    <button class="osm-control-btn" id="osmTiltDown">-</button>
+    <button class="osm-control-btn" id="osmTiltUp">+</button>
+  </div>
+</div>
+
+<div class="osm-control-group">
+  <div class="osm-control-label">ROTATION</div>
+  <div class="osm-control-value" id="osmRotationValue">0°</div>
+  <input type="range" min="0" max="360" value="0" class="osm-slider" id="osmRotationSlider">
+  <div class="osm-control-row">
+    <button class="osm-control-btn" id="osmRotateLeft">←</button>
+    <button class="osm-control-btn" id="osmRotateRight">→</button>
+  </div>
+  <button class="osm-auto-rotate-btn" id="osmToggleRotation">Auto Rotate</button>
+</div>
+
+<div class="osm-control-group">
+  <div class="osm-control-label">ZOOM</div>
+  <div class="osm-control-value" id="osmZoomValue">16</div>
+  <input type="range" min="15" max="20" value="16" class="osm-slider" id="osmZoomSlider">
+  <div class="osm-control-row">
+    <button class="osm-control-btn" id="osmZoomOut">-</button>
+    <button class="osm-control-btn" id="osmZoomIn">+</button>
+  </div>
+</div>
+
+<div class="osm-control-group">
+  <div class="osm-control-label">QUICK LOCATIONS</div>
+  <div class="osm-locations-grid">
+    <button class="osm-location-btn current-location" id="osmCurrentLocationBtn"> My Location</button>
+    <button class="osm-location-btn" data-lat="40.7128" data-lon="-74.0060">New York</button>
+    <button class="osm-location-btn" data-lat="51.5074" data-lon="-0.1278">London</button>
+    <button class="osm-location-btn" data-lat="35.6762" data-lon="139.6503">Tokyo</button>
+    <button class="osm-location-btn" data-lat="48.8566" data-lon="2.3522">Paris</button>
+    <button class="osm-location-btn" data-lat="37.7749" data-lon="-122.4194">San Francisco</button>
+  </div>
+</div>
+
+<button class="osm-btn primary" id="osmResetView" style="width:100%;padding:12px;margin-top:10px">Reset to My Location</button>
+
+</div>
+
+<div id="map"></div>
+<button class="map-locate-btn" id="mapLocateBtn" type="button" title="Center map on your location" aria-label="Center map on your location"><i class="fas fa-crosshairs"></i></button>
+
+<div id="cameraView">
+<video id="cam" autoplay playsinline muted></video>
+<canvas id="arCanvas"></canvas>
+
+<!-- Direction Guide -->
+<div class="direction-guide" id="directionGuide" style="display:none">
+  <div class="building-name" id="guideBuildingName">Building Name</div>
+  <div class="bearing-info" id="guideBearingInfo">Bearing: <span class="bearing-value">0.00°</span> • Distance: <span class="distance-value">0.00m</span></div>
+</div>
+
+<!-- Compass for direction reference - MOVED TO RIGHT SIDE -->
+<div class="compass" id="oldCompass">
+  <div class="compass-inner">
+    <div class="compass-north">N</div>
+    <div class="compass-needle" id="compassNeedle"></div>
+    <div class="compass-center"></div>
+    <div class="compass-degree" id="compassDegree">0°</div>
+  </div>
+</div>
+
+<!-- Mini map for AR navigation -->
+<div id="miniMap"></div>
+<div class="direction-indicator" id="directionIndicator"></div>
+
+<!-- Navigation instructions -->
+<div id="navigationInfo">
+  <div id="navText">Select a destination to begin navigation</div>
+  <div class="distance-bar">
+    <div class="distance-progress" style="width: 0%"></div>
+  </div>
+</div>
+
+<!-- labels and dots will be created dynamically -->
+
+</div>
+
+<section class="ar-studio" id="arStudio" aria-label="AR experiences">
+  <div class="ar-studio-tabs" role="group" aria-label="Choose AR experience">
+    <button class="ar-studio-tab active" id="arNavigationTab" type="button" aria-pressed="true"><i class="fas fa-location-arrow" aria-hidden="true"></i> Guide</button>
+    <button class="ar-studio-tab" id="arCricketTab" type="button" aria-pressed="false"><i class="fas fa-baseball-bat-ball" aria-hidden="true"></i> Cricket</button>
+    <button class="ar-studio-tab" id="arEffectsTab" type="button" aria-pressed="false"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> Camera FX</button>
+  </div>
+  <section class="ar-studio-panel" id="arCricketPanel" aria-labelledby="arCricketTab" hidden>
+    <div class="ar-cricket-scoreboard">
+      <div class="ar-cricket-score"><strong><span id="arCricketScore">0 / 0</span><small>RUNS / WICKETS</small></strong><span id="arCricketStatus" aria-live="polite">Ready · bowl the first ball</span></div>
+      <div class="ar-cricket-over"><span id="arCricketOvers">Over 0.0</span><span id="arCricketBalls">0/6 balls</span></div>
+    </div>
+    <p class="ar-cricket-tip">Follow the red ball. Tap Swing as it reaches the batter's bat; the player labels show who bowls and bats.</p>
+    <div class="ar-cricket-stage" id="arCricketStage">
+      <canvas class="ar-cricket-canvas" id="arCricketCanvas" aria-label="Interactive 3D cricket pitch. The green player is the bowler, the blue player is the batter. Tap Swing when the red ball reaches the bat."></canvas>
+      <div class="ar-cricket-scene-badge"><span class="ar-live-dot"></span> 3D AR CRICKET</div>
+      <div class="ar-cricket-timing" id="arCricketTiming" aria-live="polite">TIMING</div>
+      <div class="ar-cricket-role-key" aria-label="Green player is the bowler; blue player is the batter">
+        <span class="bowler"><i aria-hidden="true"></i>Bowler · green</span>
+        <span class="batter"><i aria-hidden="true"></i>Batter · blue</span>
+      </div>
+    </div>
+    <div class="ar-cricket-actions">
+      <button class="ar-cricket-action" id="arCricketSwing" type="button" disabled><i class="fas fa-baseball-bat-ball" aria-hidden="true"></i> Swing</button>
+      <button class="ar-cricket-action primary" id="arCricketServe" type="button"><i class="fas fa-play" aria-hidden="true"></i> Bowl delivery</button>
+      <button class="ar-cricket-action" id="arCricketReset" type="button" hidden>New innings</button>
+    </div>
+  </section>
+  <section class="ar-studio-panel" id="arEffectsPanel" aria-labelledby="arEffectsTab" hidden>
+    <div class="ar-effects-heading"><strong>Camera look</strong><span>Live preview filters — no face tracking</span></div>
+    <div class="ar-effect-options" role="group" aria-label="Camera color filter">
+      <button class="ar-effect-option active" type="button" data-camera-filter="natural" aria-pressed="true">Natural</button>
+      <button class="ar-effect-option" type="button" data-camera-filter="vivid" aria-pressed="false">Vivid</button>
+      <button class="ar-effect-option" type="button" data-camera-filter="warm" aria-pressed="false">Warm</button>
+      <button class="ar-effect-option" type="button" data-camera-filter="mono" aria-pressed="false">Mono</button>
+    </div>
+    <button class="ar-camera-switch" id="arCameraSwitch" type="button"><i class="fas fa-camera-rotate" aria-hidden="true"></i><span>Switch to selfie camera</span></button>
+  </section>
+</section>
+
+<!-- OSM Buildings View -->
+<div id="osmBuildingsView"></div>
+
+<!-- 3D Model Viewer - FIXED layout -->
+<div id="modelViewer">
+<button id="closeModelViewer">✕</button>
+<div class="model-viewer-background">
+    <div class="model-gradient-bg"></div>
+    <div class="model-floating-shapes">
+        <div class="model-shape"></div>
+        <div class="model-shape"></div>
+        <div class="model-shape"></div>
+        <div class="model-shape"></div>
+    </div>
+    <div class="model-grid-lines"></div>
+</div>
+
+<div class="model-viewer-header">
+    <h1>Western Regional Campus</h1>
+   
+    
+  <div class="model-selector">
+    <button class="model-selector-btn active" data-model="seoul">
+        <i class="fas fa-city"></i> Dummy Model Seoul City
+    </button>
+    <button class="model-selector-btn" data-model="free3d">
+        <i class="fas fa-building"></i> RIC Building
+    </button>
+    <button class="model-selector-btn" data-model="wrc">
+        <i class="fas fa-university"></i> WRC Model
+    </button>
+</div>
+<div class="model-viewer-container">
+    <div class="model-viewer-main">
+       <div class="model-viewer-wrapper">
+    <!-- Seoul City Model (Default) -->
+    <iframe id="seoul-model" title="Seoul City | Gameready | Render | Blender | PBR" 
+            frameborder="0" 
+            allowfullscreen 
+            mozallowfullscreen="true" 
+            webkitallowfullscreen="true" 
+            allow="autoplay; fullscreen; xr-spatial-tracking" 
+            xr-spatial-tracking 
+            execution-while-out-of-viewport 
+            execution-while-not-rendered 
+            web-share 
+            src="https://sketchfab.com/models/437c621c016c4f15a68b106ba2c4db87/embed">
+    </iframe>
+    
+    <!-- Free3D Model -->
+    <iframe id="free3d-model" style="display: none;"
+            title="Model Baba" 
+            frameborder="0" 
+            allowfullscreen 
+            mozallowfullscreen="true" 
+            webkitallowfullscreen="true" 
+            allow="autoplay; fullscreen; xr-spatial-tracking" 
+            xr-spatial-tracking 
+            execution-while-out-of-viewport 
+            execution-while-not-rendered 
+            web-share 
+            src="https://sketchfab.com/models/188ce0429490415a82962b72678c1227/embed">
+    </iframe>
+    
+    <!-- WRC Model (Your new link) -->
+    <iframe id="wrc-model" style="display: none;"
+            title="WRC 3D Model" 
+            frameborder="0" 
+            allowfullscreen 
+            mozallowfullscreen="true" 
+            webkitallowfullscreen="true" 
+            allow="autoplay; fullscreen; xr-spatial-tracking" 
+            xr-spatial-tracking 
+            execution-while-out-of-viewport 
+            execution-while-not-rendered 
+            web-share 
+            src="https://lcc-viewer.xgrids.com/pub/dbdxnc-ric_wrc">
+    </iframe>
+</div>
+        <div class="model-viewer-info">
+            <p id="model-info-text">
+                <a href="https://sketchfab.com/3d-models/seoul-city-gameready-render-blender-pbr-437c621c016c4f15a68b106ba2c4db87?utm_medium=embed&utm_campaign=share-popup&utm_content=437c621c016c4f15a68b106ba2c4db87" target="_blank" rel="nofollow">
+                    Seoul City | Gameready | Render | Blender | PBR
+                </a> by 
+                <a href="https://sketchfab.com/abhayexe?utm_medium=embed&utm_campaign=share-popup&utm_content=437c621c016c4f15a68b106ba2c4db87" target="_blank" rel="nofollow">
+                    abhayexe
+                </a> on 
+                <a href="https://sketchfab.com?utm_medium=embed&utm_campaign=share-popup&utm_content=437c621c016c4f15a68b106ba2c4db87" target="_blank" rel="nofollow">
+                    Sketchfab
+                </a>
+            </p>
+        </div>
+    </div>
+    
+    <div class="model-viewer-sidebar">
+        <div class="model-viewer-card">
+            <h2>Model Details</h2>
+            <ul class="model-viewer-details-list" id="model-details">
+                <li>
+                    <span class="value">Title: Seoul City</span>
+                </li>
+                <li>
+                    <span class="value">Type: 3D Model</span>
+                </li>
+                <li>
+                    <span class="value">Software: Blender</span>
+                </li>
+                <li>
+                    <span class="value">Rendering: PBR Materials</span>
+                </li>
+                <li>
+                    <span class="value">Creator: abhayexe</span>
+                </li>
+                <li>
+                    <span class="value">Platform: Sketchfab</span>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="model-viewer-card" id="wrc-attributes">
+            <h2>WRC Educational Attributes</h2>
+            <ul class="model-viewer-details-list" style="color: #bbb;">
+                <li style="display:flex; justify-content:space-between;"><span style="color:#00f3ff; font-weight:bold;">Institution</span> <span class="value">Western Regional Campus (WRC)</span></li>
+                <li style="display:flex; justify-content:space-between;"><span style="color:#00f3ff; font-weight:bold;">Affiliation</span> <span class="value">Tribhuvan University (IOE)</span></li>
+                <li style="display:flex; justify-content:space-between;"><span style="color:#00f3ff; font-weight:bold;">Established</span> <span class="value">1987 AD</span></li>
+                <li style="display:flex; justify-content:space-between;"><span style="color:#00f3ff; font-weight:bold;">Programs</span> <span class="value">Department of Electronics & Computer Engineering, Department of Electrical Engineering</span></li>
+                <li style="display:flex; justify-content:space-between;"><span style="color:#00f3ff; font-weight:bold;">Facilities</span> <span class="value">Basic Computer Lab, Advance Computer Lab (Programming Lab), Basic Electronic Lab, Digital Electronics Lab, Communication System & Antena Lab, Computer Networking & CIT Lab</span></li>
+                <li style="display:flex; justify-content:space-between; flex-direction:column; gap:6px;">
+    <span style="color:#00f3ff; font-weight:bold;">Institute Information</span>
+    <span class="value">
+        Institute of Engineering, Pashchimanchal Campus<br>
+        P.O. Box: 46, Lamachaur, Pokhara<br>
+        Tel: 061-443457, 443463, 443093, 443465<br>
+        Fax: 061-470158<br>
+        Email: info@ioepas.edu.np, info@wrc.edu.np
+    </span>
+</li>
+             
+        <!-- Admin Contact Profile -->
+<h3 style="margin-top:20px; color:#00f3ff; font-size:16px;">Admin</h3>
+
+<div style="display:flex; align-items:center; gap:15px; margin-top:10px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid rgba(0, 243, 255, 0.2);">
+    
+    <img src="1.png" 
+         alt="Admin Profile"
+         style="width:50px; height:50px; border-radius:50%; border:2px solid #00f3ff; object-fit: cover; display:block;">
+
+    <div>
+        <div style="color:#fff; font-weight:bold; font-size: 14px;">
+            Dipendra Kumar Thakur
+        </div>
+        <div style="color:#bbb; font-size:11px;">
+            pas078bge016@wrc.edu.np
+        </div>
+    </div>
+
+</div>
+        
+        <div class="model-viewer-card">
+            <h2>Viewer Controls</h2>
+            <p>Use your mouse to explore the model:</p>
+            <ul class="model-viewer-details-list">
+                <li>Left-click + drag to rotate</li>
+                <li>Right-click + drag to pan</li>
+                <li>Scroll to zoom in/out</li>
+            </ul>
+            
+            <div class="model-viewer-controls">
+                <button class="model-viewer-control-btn" id="reset-view">
+                    <i class="fas fa-redo"></i> Reset View
+                </button>
+                <button class="model-viewer-control-btn" id="fullscreen-btn">
+                    <i class="fas fa-expand"></i> Fullscreen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="model-viewer-footer">
+    <p>3D visualization by Dipendra Thakur · <a href="https://pas078bge016-stack.github.io/Portfolio/" target="_blank" rel="noopener noreferrer">View my portfolio <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a></p>
+</div>
+</div>
+
+<div id="infoBox">Awaiting location & orientation...</div>
+
+<!-- libraries -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.osmbuildings.org/4.1.1/OSMBuildings.js"></script>
+
+
+<script src="app.js"></script>
+</body>
+</html>
